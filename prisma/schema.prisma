@@ -1,0 +1,433 @@
+// Slipsy data model.
+//
+// Money is always stored as integer minor units (cents) with an explicit
+// currency code — never as a float. See src/lib/money.ts for the helpers
+// that convert to and from user-facing values.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  firstName       String
+  lastName        String?
+  phone           String
+  emailVerifiedAt DateTime?
+  termsAcceptedAt DateTime
+  lastLoginAt     DateTime?
+  /// Bumped on password change / "sign out everywhere" so existing JWTs stop validating.
+  sessionVersion  Int       @default(1)
+  failedLogins    Int       @default(0)
+  lockedUntil     DateTime?
+  notifyByEmail   Boolean   @default(true)
+  notifyOnExport  Boolean   @default(true)
+  notifyMonthly   Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  memberships            BusinessMember[]
+  ownedBusinesses        Business[]               @relation("BusinessOwner")
+  uploadedReceipts       Receipt[]                @relation("ReceiptUploader")
+  exportJobs             ExportJob[]
+  auditLogs              AuditLog[]
+  passwordResetTokens    PasswordResetToken[]
+  emailVerificationToken EmailVerificationToken[]
+
+  @@index([deletedAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Workspace
+// ---------------------------------------------------------------------------
+
+enum FolderStructure {
+  YEAR_MONTH
+  YEAR_MONTH_CATEGORY
+  CATEGORY_ONLY
+}
+
+model Business {
+  id                     String          @id @default(cuid())
+  name                   String
+  ownerUserId            String
+  currency               String          @default("ZAR")
+  /// 1 = January … 12 = December. South African default is March.
+  financialYearStartMonth Int            @default(3)
+  folderStructure        FolderStructure @default(YEAR_MONTH)
+  phone                  String?
+  vatNumber              String?
+  addressLine            String?
+  onboardingCompletedAt  DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  deletedAt              DateTime?
+
+  owner      User             @relation("BusinessOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members    BusinessMember[]
+  receipts   Receipt[]
+  folders    Folder[]
+  categories Category[]
+  tags       Tag[]
+  files      ReceiptFile[]
+  exportJobs ExportJob[]
+  auditLogs  AuditLog[]
+
+  @@index([ownerUserId])
+}
+
+enum BusinessRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model BusinessMember {
+  id         String       @id @default(cuid())
+  businessId String
+  userId     String
+  role       BusinessRole @default(OWNER)
+  createdAt  DateTime     @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Filing
+// ---------------------------------------------------------------------------
+
+enum FolderKind {
+  YEAR
+  MONTH
+  CATEGORY
+  FINANCIAL_YEAR
+  UNFILED
+  NEEDS_REVIEW
+  CUSTOM
+}
+
+model Folder {
+  id         String     @id @default(cuid())
+  businessId String
+  parentId   String?
+  name       String
+  kind       FolderKind @default(CUSTOM)
+  color      String?
+  icon       String?
+  /// Sortable key: "2026" for a year folder, "2026-01" for a month folder.
+  sortKey    String?
+  archivedAt DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  parent   Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Folder[]  @relation("FolderTree")
+  receipts Receipt[]
+
+  @@unique([businessId, parentId, name])
+  @@index([businessId, kind])
+  @@index([businessId, archivedAt])
+  @@index([parentId])
+}
+
+model Category {
+  id         String    @id @default(cuid())
+  businessId String
+  name       String
+  color      String?
+  icon       String?
+  isDefault  Boolean   @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  receipts Receipt[]
+
+  @@unique([businessId, name])
+  @@index([businessId, archivedAt])
+}
+
+model Tag {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  createdAt  DateTime @default(now())
+
+  business Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  receipts ReceiptTag[]
+
+  @@unique([businessId, name])
+}
+
+model ReceiptTag {
+  receiptId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  receipt Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([receiptId, tagId])
+  @@index([tagId])
+}
+
+// ---------------------------------------------------------------------------
+// Receipts
+// ---------------------------------------------------------------------------
+
+enum ReceiptStatus {
+  UPLOADING
+  PROCESSING
+  NEEDS_REVIEW
+  FILED
+  FAILED
+}
+
+enum DocumentType {
+  RECEIPT
+  TAX_INVOICE
+  OTHER
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  EFT
+  DEBIT_ORDER
+  MOBILE
+  OTHER
+  UNKNOWN
+}
+
+model Receipt {
+  id               String        @id @default(cuid())
+  businessId       String
+  uploadedByUserId String?
+  folderId         String?
+  categoryId       String?
+
+  status       ReceiptStatus @default(PROCESSING)
+  documentType DocumentType  @default(RECEIPT)
+
+  merchantName  String?
+  receiptNumber String?
+  purchaseDate  DateTime?
+  /// Local wall-clock time of purchase as "HH:mm" when the document shows one.
+  purchaseTime  String?
+  currency      String        @default("ZAR")
+
+  // All monetary values are integer minor units (cents).
+  subtotalCents Int?
+  taxCents      Int?
+  totalCents    Int?
+
+  paymentMethod PaymentMethod @default(UNKNOWN)
+  note          String?
+
+  // OCR provenance
+  ocrProvider   String?
+  ocrRawText    String?
+  ocrConfidence Float?
+  /// Per-field confidence map, e.g. { "merchantName": 0.42, "totalCents": 0.91 }
+  fieldConfidence Json?
+  ocrError        String?
+  reviewedAt      DateTime?
+
+  /// SHA-256 of the first original file — the primary duplicate signal.
+  fileHash      String?
+  duplicateOfId String?
+
+  /// Idempotency key from the client's offline queue: re-sending a queued
+  /// upload after a flaky connection returns the original receipt instead of
+  /// creating a second copy.
+  clientUploadId String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  business    Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  uploadedBy  User?              @relation("ReceiptUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  folder      Folder?            @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  category    Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  files       ReceiptFile[]
+  lineItems   ReceiptLineItem[]
+  tags        ReceiptTag[]
+  duplicateOf Receipt?           @relation("ReceiptDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates  Receipt[]          @relation("ReceiptDuplicates")
+
+  @@unique([businessId, clientUploadId])
+  @@index([businessId, deletedAt, purchaseDate])
+  @@index([businessId, deletedAt, createdAt])
+  @@index([businessId, status])
+  @@index([businessId, folderId])
+  @@index([businessId, categoryId])
+  @@index([businessId, fileHash])
+  @@index([businessId, merchantName])
+  @@index([businessId, receiptNumber])
+  @@index([businessId, totalCents])
+}
+
+enum FileKind {
+  ORIGINAL
+  PREVIEW
+  THUMBNAIL
+}
+
+model ReceiptFile {
+  id               String   @id @default(cuid())
+  receiptId        String
+  businessId       String
+  kind             FileKind @default(ORIGINAL)
+  /// Opaque, randomised object key inside the private storage bucket.
+  storageKey       String   @unique
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  sha256           String
+  pageNumber       Int      @default(1)
+  width            Int?
+  height           Int?
+  createdAt        DateTime @default(now())
+
+  receipt  Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId, kind])
+  @@index([businessId, sha256])
+}
+
+model ReceiptLineItem {
+  id          String   @id @default(cuid())
+  receiptId   String
+  position    Int      @default(0)
+  description String
+  /// Quantity with up to three decimal places (e.g. 1.500 kg).
+  quantity    Decimal? @db.Decimal(12, 3)
+  unitCents   Int?
+  totalCents  Int?
+  createdAt   DateTime @default(now())
+
+  receipt Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+}
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+enum ExportType {
+  SELECTION
+  FOLDER
+  DATE_RANGE
+  FULL_WORKSPACE
+  ACCOUNT_DATA
+}
+
+enum ExportStatus {
+  QUEUED
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+}
+
+model ExportJob {
+  id                String       @id @default(cuid())
+  businessId        String
+  requestedByUserId String?
+  type              ExportType
+  status            ExportStatus @default(QUEUED)
+  /// Filters used to build the export: receipt ids, folder id, date range, options.
+  params            Json
+  label             String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  fileCount         Int          @default(0)
+  sizeBytes         Int          @default(0)
+  storageKey        String?
+  error             String?
+  progress          Int          @default(0)
+  expiresAt         DateTime?
+  createdAt         DateTime     @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  requestedBy User?    @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, status])
+  @@index([businessId, createdAt])
+  @@index([status, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  businessId String?
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  /// Never contains document contents or extracted financial values.
+  metadata   Json?
+  ipHash     String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  business Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+}
