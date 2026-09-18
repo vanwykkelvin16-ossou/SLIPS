@@ -81,6 +81,48 @@
     padding-top: env(safe-area-inset-top);
   }
 
+  /* Long-form legal and help copy. */
+  .prose-slipsy h1 {
+    @apply text-3xl font-extrabold tracking-tight text-forest-900;
+  }
+
+  .prose-slipsy h2 {
+    @apply mt-8 text-xl font-bold tracking-tight text-forest-900;
+  }
+
+  .prose-slipsy h3 {
+    @apply mt-6 text-base font-bold text-forest-800;
+  }
+
+  .prose-slipsy p,
+  .prose-slipsy li {
+    @apply text-[0.9375rem] leading-relaxed text-ink-700;
+  }
+
+  .prose-slipsy p {
+    @apply mt-3;
+  }
+
+  .prose-slipsy ul {
+    @apply mt-3 list-disc space-y-1.5 pl-5;
+  }
+
+  .prose-slipsy ol {
+    @apply mt-3 list-decimal space-y-1.5 pl-5;
+  }
+
+  .prose-slipsy a {
+    @apply rounded font-semibold text-green-700 underline underline-offset-2 hover:text-green-800;
+  }
+
+  .prose-slipsy strong {
+    @apply font-semibold text-forest-800;
+  }
+
+  .prose-slipsy hr {
+    @apply my-8 border-line;
+  }
+
   /* Visible only to screen readers, until focused (skip links). */
   .sr-only-focusable:not(:focus):not(:focus-within) {
     position: absolute;
