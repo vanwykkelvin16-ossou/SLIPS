@@ -5,8 +5,10 @@ import { completeOnboarding, fillForm, newAccount, signUp, uploadReceipt, waitFo
  * Captures the main screens so their layout can be reviewed.
  * Run with: npx playwright test tests/e2e/screenshots.spec.ts
  */
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'kelvin@sabroking.co.za';
-const ADMIN_PASSWORD = process.env.ADMIN_INITIAL_PASSWORD ?? 'kelvin@sabroking.co.za';
+// Supplied from the environment, never written down here.
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? '';
+const ADMIN_PASSWORD = process.env.ADMIN_INITIAL_PASSWORD ?? '';
+const HAVE_ADMIN_CREDENTIALS = ADMIN_EMAIL.length > 0 && ADMIN_PASSWORD.length > 0;
 const OUT = 'test-results/screens';
 
 test.describe('visual capture', () => {
@@ -19,6 +21,8 @@ test.describe('visual capture', () => {
 
     await page.goto('/admin/login');
     await page.screenshot({ path: `${OUT}/admin-login.png` });
+
+    if (!HAVE_ADMIN_CREDENTIALS) return;
 
     await waitForHydration(page);
     await fillForm(page, [

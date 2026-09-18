@@ -27,16 +27,18 @@ export default async function DashboardPage() {
 
   return (
     <div className="app-container py-6 lg:py-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      {/* `min-w-0` on the text and `shrink-0` on the actions keep a long name
+          from pushing the buttons off the side at tablet widths. */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink-500">{greeting()},</p>
-          <h1 className="text-3xl font-extrabold tracking-tight text-forest-900">{session.firstName}</h1>
+          <h1 className="break-words text-3xl font-extrabold tracking-tight text-forest-900">{session.firstName}</h1>
           <p className="mt-1 text-ink-600">
             {data.hasAnySlip ? 'Everything is safely filed. Add today’s slips whenever you are ready.' : brand.tagline}
           </p>
         </div>
 
-        <div className="flex flex-col gap-2.5 sm:flex-row">
+        <div className="flex shrink-0 flex-col gap-2.5 sm:flex-row">
           <ButtonLink href="/scan" size="lg" icon={<Camera className="h-5 w-5" />}>
             Scan a slip
           </ButtonLink>

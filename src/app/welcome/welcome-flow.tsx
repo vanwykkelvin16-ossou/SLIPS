@@ -105,9 +105,9 @@ export function WelcomeFlow({ firstName, businessName }: { firstName: string; bu
               <span aria-hidden="true" className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-mint-100 text-forest-700">
                 <PartyPopper className="h-7 w-7" />
               </span>
-              <h1 className="text-3xl font-extrabold tracking-tight text-forest-900">Welcome, {firstName}!</h1>
+              <h1 className="break-words text-3xl font-extrabold tracking-tight text-forest-900">Welcome, {firstName}!</h1>
               <p className="mt-3 text-ink-600 text-balance">
-                <strong className="font-semibold text-forest-800">{businessName}</strong> has its own private workspace.
+                <strong className="break-words font-semibold text-forest-800">{businessName}</strong> has its own private workspace.
                 Only you can see what you file here.
               </p>
               <p className="mt-2 text-ink-600">{brand.tagline}</p>

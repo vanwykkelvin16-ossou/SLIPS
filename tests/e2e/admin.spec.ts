@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { completeOnboarding, fillForm, newAccount, signUp, waitForHydration } from './helpers';
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'kelvin@sabroking.co.za';
-const ADMIN_PASSWORD = process.env.ADMIN_INITIAL_PASSWORD ?? 'kelvin@sabroking.co.za';
+// The administrator's credentials are never written down here. Supply them the
+// same way the server does — ADMIN_EMAIL and ADMIN_INITIAL_PASSWORD in the
+// environment — and the sign-in test runs; without them it is skipped rather
+// than guessed at.
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? '';
+const ADMIN_PASSWORD = process.env.ADMIN_INITIAL_PASSWORD ?? '';
+const HAVE_ADMIN_CREDENTIALS = ADMIN_EMAIL.length > 0 && ADMIN_PASSWORD.length > 0;
 
 test.describe('the admin portal', () => {
   test('refuses access without an admin session', async ({ page }) => {
@@ -33,7 +38,7 @@ test.describe('the admin portal', () => {
     await page.goto('/admin/login');
     await waitForHydration(page);
     await fillForm(page, [
-      [page.getByLabel('E-mail address'), ADMIN_EMAIL],
+      [page.getByLabel('E-mail address'), ADMIN_EMAIL || 'not-an-administrator@example.com'],
       [page.getByLabel('Password', { exact: true }), 'definitely-not-the-password'],
     ]);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -43,6 +48,8 @@ test.describe('the admin portal', () => {
   });
 
   test('the administrator can sign in, search the directory and sign out', async ({ page }) => {
+    test.skip(!HAVE_ADMIN_CREDENTIALS, 'Set ADMIN_EMAIL and ADMIN_INITIAL_PASSWORD to run this test.');
+
     // A registration made now must appear in the directory straight away.
     const account = newAccount('directory');
     await signUp(page, account);

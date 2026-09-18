@@ -19,15 +19,18 @@ interface BeforeInstallPromptEvent extends Event {
 const DISMISSED_KEY = 'slipsy.install-prompt.dismissed-at';
 const DISMISS_DAYS = 14;
 
-export function detectPlatform(userAgent: string, vendor: string): InstallPlatform {
+export function detectPlatform(userAgent: string): InstallPlatform {
   const ua = userAgent.toLowerCase();
   const isIos = /iphone|ipad|ipod/.test(ua) || (/macintosh/.test(ua) && typeof document !== 'undefined' && 'ontouchend' in document);
 
   if (isIos) {
     // Every iOS browser uses WebKit, but only Safari's share sheet offers
-    // "Add to Home Screen"; Chrome and Firefox on iOS hide it behind their own menus.
-    const isSafari = /safari/.test(ua) && !/crios|fxios|edgios|opt\//.test(ua) && /apple/i.test(vendor);
-    return isSafari ? 'ios-safari' : 'ios-other';
+    // "Add to Home Screen"; Chrome and Firefox on iOS hide it behind their own
+    // menus. Those browsers identify themselves in the user agent, so absence
+    // of their tokens means Safari — `navigator.vendor` is not relied on,
+    // since it is spoofed or blank often enough to misroute real Safari users.
+    const isOtherIosBrowser = /crios|fxios|edgios|opr\/|opt\/|yabrowser|duckduckgo/.test(ua);
+    return isOtherIosBrowser ? 'ios-other' : 'ios-safari';
   }
 
   if (/android/.test(ua)) {
@@ -79,7 +82,7 @@ export function usePwaInstall(): PwaInstallState {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    setPlatform(detectPlatform(navigator.userAgent, navigator.vendor));
+    setPlatform(detectPlatform(navigator.userAgent));
     setIsInstalled(isStandaloneDisplay());
     setReady(true);
 

@@ -60,7 +60,7 @@ export default async function BusinessPage() {
     <div className="app-container max-w-3xl py-6 lg:py-8">
       <header className="mb-5">
         <h1 className="text-2xl font-extrabold tracking-tight text-forest-900 lg:text-3xl">Business profile</h1>
-        <p className="mt-1 text-ink-600">How {business.name} is set up, and how new slips get filed.</p>
+        <p className="mt-1 break-words text-ink-600">How {business.name} is set up, and how new slips get filed.</p>
       </header>
 
       <div className="space-y-5">

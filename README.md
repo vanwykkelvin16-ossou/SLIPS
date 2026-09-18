@@ -211,7 +211,7 @@ alone — every status badge carries an icon and words.
 
 ```bash
 npm test          # 92 unit tests
-npm run test:e2e  # end-to-end, in a real browser
+npm run test:e2e  # 29 end-to-end tests, in a real browser
 ```
 
 **Unit** (`tests/unit/`) — money parsing and formatting across SA/US/EU
@@ -220,15 +220,33 @@ a realistic till slip and its edge cases; phone/e-mail/password/export
 validation; export filenames and CSV generation including formula-injection
 neutralising; upload content sniffing and storage-key/path-traversal safety.
 
-**End-to-end** (`tests/e2e/`) — the full journey (register → onboard → upload →
-real OCR → review → correct → file → sign out → sign in → search → folders →
-ZIP export → PDF download → delete → undo); duplicate detection; business
-isolation including a leaked signed URL and a tampered token; and the admin
-portal including a customer session being refused.
+**End-to-end** (`tests/e2e/`), all against a real build, a real database and
+real OCR:
 
-E2E tests run against a real build with a real database and real OCR — the
-fixture slip in `tests/fixtures/` is rendered by
-`node tests/fixtures/make-receipt.mjs`.
+- *Journey* — register → onboard → upload → read → review → correct → file →
+  sign out → sign in → search → folders → ZIP export → PDF download → delete →
+  undo, plus duplicate detection.
+- *Isolation* — a second business is refused the first's slip by page, by API,
+  in bulk, through a leaked signed URL and through a tampered token.
+- *Account flows* — password reset end to end (including that the old password
+  stops working and the link cannot be reused), e-mail confirmation, and that a
+  reset for an unknown address reveals nothing.
+- *Admin* — the portal refuses anonymous visitors, refuses a signed-in customer,
+  rate-limits and rejects bad credentials, and exposes contact fields only.
+- *PWA* — a valid manifest whose icons all exist, a registered service worker
+  that caches the offline page and never caches a page or API response, and
+  honest iOS install instructions with no fake prompt.
+- *Responsive* — every main screen at six widths from 320px to 1440px with no
+  horizontal overflow, the right navigation at each size, and 44px touch targets.
+
+The fixture slip in `tests/fixtures/` is rendered by
+`node tests/fixtures/make-receipt.mjs`. To run the suite against an already
+running server, use `E2E_BASE_URL=http://localhost:3000 npx playwright test`.
+
+The administrator sign-in test reads `ADMIN_EMAIL` and `ADMIN_INITIAL_PASSWORD`
+from the environment — no credential is written into the test files — and skips
+itself if they are not set. `tests/e2e/screenshots.spec.ts` is a separate
+capture run, not part of the suite's assertions.
 
 ---
 

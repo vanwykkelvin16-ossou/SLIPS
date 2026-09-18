@@ -28,7 +28,7 @@ export default async function MorePage() {
     <div className="app-container max-w-2xl py-6">
       <header className="mb-5">
         <h1 className="text-2xl font-extrabold tracking-tight text-forest-900">More</h1>
-        <p className="mt-1 text-ink-600">
+        <p className="mt-1 break-words text-ink-600">
           {session.businessName} · {session.email}
         </p>
       </header>
