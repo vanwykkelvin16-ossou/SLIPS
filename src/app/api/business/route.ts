@@ -7,6 +7,7 @@ import { normalisePhone } from '@/lib/validation';
 import { businessSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace(async ({ session }) => {
   const business = await prisma.business.findFirst({

@@ -81,7 +81,16 @@ export function parseReceipt(raw: OcrRawResult, options: ParseOptions = {}): Par
   const fieldConfidence: ConfidenceMap = {};
 
   const currency = detectCurrency(lines, hints, defaultCurrency);
-  fieldConfidence.currency = hints?.currency ? clamp01(hints.currency.confidence) : currency === defaultCurrency ? 0.6 : 0.85;
+  /*
+   * Only scored when the currency was actually read from the document. Falling
+   * back to the workspace default is not a guess worth asking the user about,
+   * and flagging it would bury the fields that do need checking.
+   */
+  if (hints?.currency) {
+    fieldConfidence.currency = clamp01(hints.currency.confidence);
+  } else if (currency !== defaultCurrency) {
+    fieldConfidence.currency = 0.85;
+  }
 
   const merchant = fromHint(hints?.merchantName) ?? detectMerchant(lines, lineConfidence);
   if (merchant) {
@@ -134,8 +143,21 @@ export function parseReceipt(raw: OcrRawResult, options: ParseOptions = {}): Par
     fieldConfidence.taxCents = clamp01((fieldConfidence.taxCents ?? 0.5) + 0.15);
   }
 
-  const scores = Object.values(fieldConfidence).filter((value): value is number => typeof value === 'number');
-  const confidence = scores.length ? clamp01(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  /*
+   * Overall confidence reflects the fields that actually matter. Currency is
+   * excluded because it always has a value — falling back to the workspace
+   * default — and would otherwise make an unreadable document look half-read.
+   */
+  const substantive = Object.entries(fieldConfidence)
+    .filter(([field]) => field !== 'currency')
+    .map(([, score]) => score)
+    .filter((score): score is number => typeof score === 'number');
+
+  const foundSomething = merchant !== null || detectedDate !== null || amounts.totalCents !== null;
+  const confidence =
+    foundSomething && substantive.length
+      ? clamp01(substantive.reduce((a, b) => a + b, 0) / substantive.length)
+      : 0;
 
   return {
     merchantName: merchant?.value ?? null,

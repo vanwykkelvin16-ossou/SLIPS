@@ -8,6 +8,7 @@ import { prisma } from '@/lib/db';
 import { getWorkspaceSession } from '@/lib/session';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const verifySchema = z.object({ token: z.string().min(10) });
 

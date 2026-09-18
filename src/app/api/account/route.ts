@@ -9,6 +9,7 @@ import { passwordChangedEmail } from '@/lib/email/templates';
 import { changePasswordSchema, profileSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace(
   async ({ session }) => {

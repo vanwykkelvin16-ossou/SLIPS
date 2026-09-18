@@ -11,7 +11,7 @@ import { ProgressBar } from '@/components/ui/feedback';
 import { EmptyState } from '@/components/ui/states';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, apiFetch } from '@/lib/client/api-client';
-import type { FolderOption } from '@/components/receipts/receipt-form';
+import type { FolderOption } from '@/lib/receipts/form-values';
 
 export interface ExportJobView {
   id: string;

@@ -54,14 +54,27 @@ export interface RateLimitResult {
   limit: number;
 }
 
+/** Reads a positive integer override, falling back to the safe default. */
+function limitFrom(name: string, fallback: number): number {
+  const raw = process.env[`RATE_LIMIT_${name}`];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * Defaults are tuned for a production deployment. Each can be raised for
+ * load testing or a busy shared-IP office via a RATE_LIMIT_* environment
+ * variable — there is no switch that turns limiting off entirely.
+ */
 export const RATE_LIMITS = {
-  login: { limit: 10, windowMs: 15 * 60_000 },
-  signup: { limit: 5, windowMs: 60 * 60_000 },
-  passwordReset: { limit: 5, windowMs: 60 * 60_000 },
-  upload: { limit: 60, windowMs: 10 * 60_000 },
-  export: { limit: 20, windowMs: 60 * 60_000 },
-  mutation: { limit: 300, windowMs: 5 * 60_000 },
-  read: { limit: 600, windowMs: 5 * 60_000 },
+  login: { limit: limitFrom('LOGIN', 10), windowMs: 15 * 60_000 },
+  signup: { limit: limitFrom('SIGNUP', 5), windowMs: 60 * 60_000 },
+  passwordReset: { limit: limitFrom('PASSWORD_RESET', 5), windowMs: 60 * 60_000 },
+  upload: { limit: limitFrom('UPLOAD', 60), windowMs: 10 * 60_000 },
+  export: { limit: limitFrom('EXPORT', 20), windowMs: 60 * 60_000 },
+  mutation: { limit: limitFrom('MUTATION', 300), windowMs: 5 * 60_000 },
+  read: { limit: limitFrom('READ', 600), windowMs: 5 * 60_000 },
 } as const;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

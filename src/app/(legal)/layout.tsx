@@ -34,6 +34,12 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
           <span>
             © {new Date().getFullYear()} {brand.name}
           </span>
+          <Link
+            href="/admin/login"
+            className="rounded text-ink-400 hover:text-ink-600 hover:underline focus-visible:ring-2 focus-visible:ring-green-600"
+          >
+            Admin login
+          </Link>
         </div>
       </footer>
     </div>

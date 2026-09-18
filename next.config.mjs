@@ -25,6 +25,14 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   eslint: { ignoreDuringBuilds: false },
+  experimental: {
+    /*
+     * These packages ship worker scripts, native binaries or their own asset
+     * paths and must stay in node_modules rather than being bundled — otherwise
+     * they cannot resolve their own files at runtime in a production build.
+     */
+    serverComponentsExternalPackages: ['tesseract.js', 'sharp', 'pdfjs-dist', 'archiver', 'exceljs', 'pdf-lib'],
+  },
   async headers() {
     return [
       { source: '/(.*)', headers: securityHeaders },

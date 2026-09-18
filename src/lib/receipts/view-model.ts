@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { getFolderTree, type FolderNode } from '@/lib/folders';
 import { signedFileUrl } from '@/lib/storage/signing';
 import type { DocumentPage } from '@/components/receipts/document-viewer';
-import type { CategoryOption, FolderOption } from '@/components/receipts/receipt-form';
+import type { CategoryOption, FolderOption } from './form-values';
 import { getReceiptDetail } from './service';
 
 const PREVIEW_URL_TTL_SECONDS = 900;

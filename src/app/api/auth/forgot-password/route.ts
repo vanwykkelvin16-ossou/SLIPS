@@ -9,6 +9,7 @@ import { getAppUrl } from '@/lib/env';
 import { forgotPasswordSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const POST = withPublicRoute(
   async ({ request }) => {

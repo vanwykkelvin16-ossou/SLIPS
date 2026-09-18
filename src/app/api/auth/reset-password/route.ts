@@ -9,6 +9,7 @@ import { passwordChangedEmail } from '@/lib/email/templates';
 import { resetPasswordSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const POST = withPublicRoute(
   async ({ request }) => {

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { categorySchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace(async ({ session }) => {
   const categories = await prisma.category.findMany({

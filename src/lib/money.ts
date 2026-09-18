@@ -92,7 +92,8 @@ export function formatMoney(
   options: { withSymbol?: boolean } = {},
 ): string {
   const { withSymbol = true } = options;
-  if (cents === null || cents === undefined) return withSymbol ? `${currencyMeta(currency).symbol} —` : '—';
+  // The same non-breaking space as a real amount, so a column of values lines up.
+  if (cents === null || cents === undefined) return withSymbol ? `${currencyMeta(currency).symbol} —` : '—';
 
   const meta = currencyMeta(currency);
   const negative = cents < 0;

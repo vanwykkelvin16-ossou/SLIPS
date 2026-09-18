@@ -5,6 +5,7 @@ import { signedFileUrl } from '@/lib/storage/signing';
 import { receiptQuerySchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace(async ({ request, session }) => {
   const query = parseQuery(request, receiptQuerySchema);

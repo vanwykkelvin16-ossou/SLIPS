@@ -1,4 +1,4 @@
-import { Prisma, ReceiptStatus } from '@prisma/client';
+import { FolderKind, Prisma, ReceiptStatus } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { HttpError, notFound, parseJson, withWorkspace } from '@/lib/api';
 import { recordAudit } from '@/lib/audit';
@@ -10,6 +10,7 @@ import { fromDateInput, getReceiptDetail } from '@/lib/receipts/service';
 import { receiptUpdateSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace<{ id: string }>(async ({ session, params }) => {
   const receipt = await getReceiptDetail(session.businessId, params.id);
@@ -22,11 +23,12 @@ export const PATCH = withWorkspace<{ id: string }>(async ({ request, session, pa
 
   const existing = await prisma.receipt.findFirst({
     where: { id: params.id, businessId: session.businessId, deletedAt: null },
-    select: { id: true, currency: true, status: true, fileHash: true },
+    select: { id: true, currency: true, status: true, fileHash: true, folderId: true },
   });
   if (!existing) return notFound('That slip');
 
   const currency = data.currency ?? existing.currency;
+  const existingFolderId = existing.folderId;
 
   // Every referenced folder and category must belong to this workspace.
   if (data.folderId) {
@@ -71,10 +73,23 @@ export const PATCH = withWorkspace<{ id: string }>(async ({ request, session, pa
       : {}),
   };
 
-  // Filing a slip without an explicit folder: file it by its date.
+  /*
+   * Filing by date. A slip being filed that is still sitting in a holding
+   * folder — or has no folder at all — is moved to its year/month folder, so
+   * "Unfiled" and "Needs review" never become permanent homes. A folder the
+   * user actually picked is always respected.
+   */
   let folderId = data.folderId;
-  if (data.status === 'FILED' && folderId === undefined && purchaseDate) {
-    folderId = await ensureDateFolder(session.businessId, purchaseDate, session.folderStructure, categoryName);
+  if (data.status === 'FILED' && purchaseDate) {
+    const chosenId = folderId === undefined ? existingFolderId : folderId;
+    const chosen = chosenId
+      ? await prisma.folder.findFirst({ where: { id: chosenId, businessId: session.businessId }, select: { kind: true } })
+      : null;
+    const isHoldingFolder = !chosen || chosen.kind === FolderKind.UNFILED || chosen.kind === FolderKind.NEEDS_REVIEW;
+
+    if (isHoldingFolder) {
+      folderId = await ensureDateFolder(session.businessId, purchaseDate, session.folderStructure, categoryName);
+    }
   }
   if (folderId !== undefined) {
     update.folder = folderId ? { connect: { id: folderId } } : { disconnect: true };

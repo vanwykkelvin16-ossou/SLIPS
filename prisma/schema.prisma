@@ -49,6 +49,28 @@ model User {
   @@index([deletedAt])
 }
 
+/// Staff account for the admin portal.
+///
+/// Deliberately a separate table from `User`: a customer account can never be
+/// escalated into an administrator, and the two sign-in flows share no session,
+/// no cookie and no password store.
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  isActive     Boolean   @default(true)
+  /// True until the seeded initial password has been replaced.
+  mustChangePassword Boolean @default(false)
+  lastLoginAt  DateTime?
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime?
+  /// Bumped on password change so existing admin sessions stop validating.
+  sessionVersion Int     @default(1)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String

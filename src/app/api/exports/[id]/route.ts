@@ -6,6 +6,7 @@ import { startExportJob } from '@/lib/export/queue';
 import { signedFileUrl } from '@/lib/storage/signing';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace<{ id: string }>(async ({ session, params }) => {
   const job = await prisma.exportJob.findFirst({

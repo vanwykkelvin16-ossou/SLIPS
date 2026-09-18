@@ -41,17 +41,37 @@ export interface OcrOutcome {
   parsed: ParsedReceipt;
 }
 
+/** A provider that never answers must not hold the request open forever. */
+const OCR_TIMEOUT_MS = Number(process.env.OCR_TIMEOUT_MS ?? 90_000);
+
+export class OcrTimeoutError extends Error {
+  constructor() {
+    super('Reading the document took too long.');
+    this.name = 'OcrTimeoutError';
+  }
+}
+
 /**
  * Runs the configured provider and converts its output into suggested fields.
- * Never throws: a failed or empty extraction returns an empty suggestion set so
- * the document is still stored and the user can fill the details in by hand.
+ * The caller stores the document regardless, so a failure here only means the
+ * user fills the details in by hand.
  */
 export async function runOcr(
   input: { buffer: Buffer; mimeType: string },
   options: ParseOptions = {},
 ): Promise<OcrOutcome> {
   const active = getOcrProvider();
-  const raw = await active.extract(input);
-  const parsed = parseReceipt(raw, options);
-  return { raw, parsed };
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new OcrTimeoutError()), OCR_TIMEOUT_MS);
+  });
+
+  try {
+    const raw = await Promise.race([active.extract(input), timeout]);
+    const parsed = parseReceipt(raw, options);
+    return { raw, parsed };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

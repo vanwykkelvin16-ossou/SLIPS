@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DocumentViewer } from '@/components/receipts/document-viewer';
-import { ReceiptForm, toFormValues } from '@/components/receipts/receipt-form';
+import { ReceiptForm } from '@/components/receipts/receipt-form';
+import { toFormValues } from '@/lib/receipts/form-values';
 import { getReceiptDetail } from '@/lib/receipts/service';
 import {
   buildDocumentPages,

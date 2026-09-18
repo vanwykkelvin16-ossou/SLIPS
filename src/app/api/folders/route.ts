@@ -7,6 +7,7 @@ import { getFolderTree } from '@/lib/folders';
 import { folderSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace(async ({ request, session }) => {
   const url = new URL(request.url);

@@ -260,6 +260,9 @@ export async function processReceiptOcr(options: {
     where: { id: receipt.id },
     data: {
       status: ReceiptStatus.NEEDS_REVIEW,
+      // The suggestion is applied now so the review screen shows where the slip
+      // will land, and confirming it keeps that folder. The user can override.
+      folderId: suggestedFolderId,
       merchantName: parsed?.merchantName ?? null,
       receiptNumber: parsed?.receiptNumber ?? null,
       purchaseDate: parsed?.purchaseDate ?? null,

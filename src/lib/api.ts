@@ -112,6 +112,10 @@ export function withPublicRoute(
 }
 
 function handleRouteError(error: unknown): Response {
+  // Next.js signals "this route must be dynamic" by throwing during static
+  // analysis. Swallowing it would turn a build-time hint into a runtime 500.
+  if (error instanceof Error && error.name === 'DynamicServerError') throw error;
+
   if (error instanceof HttpError) {
     return jsonError(error.message, error.status, error.code, error.fields);
   }

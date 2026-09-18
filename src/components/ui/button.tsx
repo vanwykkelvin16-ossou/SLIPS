@@ -10,7 +10,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subt
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const base =
-  'relative inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-all duration-150 select-none ' +
+  'relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-all duration-150 select-none ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 ' +
   'disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none active:scale-[0.985]';
 

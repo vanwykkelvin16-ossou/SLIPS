@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { categorySchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const PATCH = withWorkspace<{ id: string }>(async ({ request, session, params }) => {
   const data = await parseJson(request, categorySchema.partial());

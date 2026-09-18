@@ -5,6 +5,7 @@ import { recordAudit } from '@/lib/audit';
 import { prisma } from '@/lib/db';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const bulkSchema = z.object({
   receiptIds: z.array(z.string().cuid()).min(1, 'Select at least one slip').max(500),

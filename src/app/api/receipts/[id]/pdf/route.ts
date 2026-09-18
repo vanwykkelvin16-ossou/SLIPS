@@ -8,6 +8,7 @@ import { buildReceiptPdf } from '@/lib/export/receipt-pdf';
 import { getStorage } from '@/lib/storage';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /** One slip as a tidy PDF: extracted details first, original document after. */

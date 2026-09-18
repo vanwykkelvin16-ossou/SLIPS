@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { DocumentViewer } from '@/components/receipts/document-viewer';
-import { ReceiptForm, toFormValues } from '@/components/receipts/receipt-form';
+import { ReceiptForm } from '@/components/receipts/receipt-form';
+import { toFormValues } from '@/lib/receipts/form-values';
 import { findDuplicates } from '@/lib/receipts/duplicates';
 import { getReceiptDetail } from '@/lib/receipts/service';
 import {

@@ -8,6 +8,7 @@ import { startExportJob } from '@/lib/export/queue';
 import { exportRequestSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const GET = withWorkspace(async ({ session }) => {
   const jobs = await prisma.exportJob.findMany({

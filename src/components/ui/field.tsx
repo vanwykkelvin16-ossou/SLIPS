@@ -29,16 +29,22 @@ interface FieldShellProps {
 export function FieldShell({ id, label, hint, error, required, needsCheck, children, className }: FieldShellProps) {
   return (
     <div className={cn('space-y-1.5', className)}>
-      <div className="flex items-center justify-between gap-2">
-        <label htmlFor={id} className="text-sm font-semibold text-forest-800">
-          {label}
+      {/* Wraps rather than squashing the label when the field is narrow and a
+          "Please check" flag is also showing. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        {/* The asterisk sits outside the <label> so the label's text is exactly
+            the field name. `required` on the control is what assistive
+            technology announces. */}
+        <span className="flex items-baseline gap-0.5">
+          <label htmlFor={id} className="text-sm font-semibold text-forest-800">
+            {label}
+          </label>
           {required ? (
-            <span className="ml-1 text-danger-600" aria-hidden="true">
+            <span className="text-sm font-semibold text-danger-600" aria-hidden="true">
               *
             </span>
           ) : null}
-          {required ? <span className="sr-only"> (required)</span> : null}
-        </label>
+        </span>
         {needsCheck ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 text-2xs font-semibold text-warning-600">
             <AlertCircle aria-hidden="true" className="h-3 w-3" />

@@ -8,6 +8,7 @@ import { ensureSystemFolders, folderIdsWithDescendants } from '@/lib/folders';
 import { folderSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const patchSchema = folderSchema.partial().extend({
   archived: z.boolean().optional(),

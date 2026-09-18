@@ -5,6 +5,7 @@ import { recordAudit } from '@/lib/audit';
 import { signupSchema } from '@/lib/validation';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export const POST = withPublicRoute(
   async ({ request }) => {

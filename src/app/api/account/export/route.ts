@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { centsToInputValue } from '@/lib/money';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
  * "Export all my data" — the structured record of everything held about the

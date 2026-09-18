@@ -8,44 +8,16 @@ import { Button } from '@/components/ui/button';
 import { SelectField, TextArea, TextField } from '@/components/ui/field';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, apiFetch } from '@/lib/client/api-client';
-import { centsToInputValue, formatMoney, parseAmountToCents, sumCents } from '@/lib/money';
+import { formatMoney, parseAmountToCents, sumCents } from '@/lib/money';
 
-export interface FolderOption {
-  id: string;
-  label: string;
-}
+import type {
+  CategoryOption,
+  DuplicateWarning,
+  FolderOption,
+  ReceiptFormValues,
+} from '@/lib/receipts/form-values';
 
-export interface CategoryOption {
-  id: string;
-  name: string;
-}
-
-export interface DuplicateWarning {
-  receiptId: string;
-  merchantName: string | null;
-  purchaseDate: string | null;
-  totalCents: number | null;
-  currency: string;
-  score: number;
-  explanation: string;
-}
-
-export interface ReceiptFormValues {
-  merchantName: string;
-  receiptNumber: string;
-  purchaseDate: string;
-  purchaseTime: string;
-  documentType: 'RECEIPT' | 'TAX_INVOICE' | 'OTHER';
-  currency: string;
-  subtotal: string;
-  tax: string;
-  total: string;
-  paymentMethod: string;
-  categoryId: string;
-  folderId: string;
-  note: string;
-  tags: string[];
-}
+export type { CategoryOption, DuplicateWarning, FolderOption, ReceiptFormValues };
 
 const PAYMENT_OPTIONS = [
   { value: 'UNKNOWN', label: 'Not recorded' },
@@ -575,45 +547,4 @@ export function ReceiptForm({
       ) : null}
     </form>
   );
-}
-
-/** Builds form values from an API receipt payload. */
-export function toFormValues(receipt: {
-  merchantName: string | null;
-  receiptNumber: string | null;
-  purchaseDate: string | Date | null;
-  purchaseTime: string | null;
-  documentType: string;
-  currency: string;
-  subtotalCents: number | null;
-  taxCents: number | null;
-  totalCents: number | null;
-  paymentMethod: string;
-  categoryId: string | null;
-  folderId: string | null;
-  note: string | null;
-  tags: string[];
-}): ReceiptFormValues {
-  const date = receipt.purchaseDate
-    ? typeof receipt.purchaseDate === 'string'
-      ? receipt.purchaseDate.slice(0, 10)
-      : receipt.purchaseDate.toISOString().slice(0, 10)
-    : '';
-
-  return {
-    merchantName: receipt.merchantName ?? '',
-    receiptNumber: receipt.receiptNumber ?? '',
-    purchaseDate: date,
-    purchaseTime: receipt.purchaseTime ?? '',
-    documentType: (receipt.documentType as ReceiptFormValues['documentType']) ?? 'RECEIPT',
-    currency: receipt.currency,
-    subtotal: receipt.subtotalCents !== null ? centsToInputValue(receipt.subtotalCents, receipt.currency) : '',
-    tax: receipt.taxCents !== null ? centsToInputValue(receipt.taxCents, receipt.currency) : '',
-    total: receipt.totalCents !== null ? centsToInputValue(receipt.totalCents, receipt.currency) : '',
-    paymentMethod: receipt.paymentMethod ?? 'UNKNOWN',
-    categoryId: receipt.categoryId ?? '',
-    folderId: receipt.folderId ?? '',
-    note: receipt.note ?? '',
-    tags: receipt.tags,
-  };
 }

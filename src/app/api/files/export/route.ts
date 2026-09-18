@@ -9,6 +9,7 @@ import { getStorage } from '@/lib/storage';
 import { verifyFileToken } from '@/lib/storage/signing';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /** Streams a finished export archive to its owner. Same triple check as documents. */
 export async function GET(request: Request) {

@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { enhanceForOcr } from '@/lib/images';
 import { extractPdfText } from './pdf-text';
 import type { OcrProvider, OcrRawResult } from './types';
@@ -33,7 +35,17 @@ export class TesseractOcrProvider implements OcrProvider {
 
     const prepared = await enhanceForOcr(buffer);
     const { createWorker } = await import('tesseract.js');
-    const worker = await createWorker('eng');
+
+    const langPath = resolveLanguagePath();
+    const worker = await createWorker('eng', 1, {
+      // Reading the language data from disk keeps extraction working on hosts
+      // with no outbound internet access. Without it Tesseract fetches ~3 MB
+      // from a public CDN on first use.
+      ...(langPath ? { langPath } : {}),
+      cachePath: process.env.OCR_CACHE_PATH || './.tesseract-cache',
+      gzip: true,
+      logger: () => undefined,
+    });
 
     try {
       const { data } = await worker.recognize(prepared);
@@ -51,6 +63,34 @@ export class TesseractOcrProvider implements OcrProvider {
       await worker.terminate();
     }
   }
+}
+
+let cachedLangPath: string | null | undefined;
+
+/**
+ * Finds the bundled `eng.traineddata.gz`. OCR_LANG_PATH wins when set;
+ * otherwise the copy installed with @tesseract.js-data/eng is used. Returning
+ * null lets Tesseract fall back to its CDN, which only works online.
+ */
+function resolveLanguagePath(): string | null {
+  if (cachedLangPath !== undefined) return cachedLangPath;
+
+  const candidates = [
+    process.env.OCR_LANG_PATH,
+    path.join(process.cwd(), 'tessdata'),
+    path.join(process.cwd(), 'node_modules', '@tesseract.js-data', 'eng', '4.0.0_best_int'),
+    path.join(process.cwd(), 'node_modules', '@tesseract.js-data', 'eng', '4.0.0'),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  for (const candidate of candidates) {
+    if (existsSync(path.join(candidate, 'eng.traineddata.gz')) || existsSync(path.join(candidate, 'eng.traineddata'))) {
+      cachedLangPath = candidate;
+      return cachedLangPath;
+    }
+  }
+
+  cachedLangPath = null;
+  return null;
 }
 
 function clamp01(value: number): number {

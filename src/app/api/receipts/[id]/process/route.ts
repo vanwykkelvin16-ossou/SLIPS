@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { processReceiptOcr, UploadRejectedError } from '@/lib/receipts/service';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 /**
