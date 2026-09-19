@@ -106,6 +106,10 @@ node scripts/generate-icons.mjs   # regenerate icons after a brand change
 The app is a standard Next.js server. Any host that runs Node works: a VPS with
 PM2 or systemd, Docker, Fly.io, Railway, Render, or Vercel.
 
+**In a hurry?** `DEPLOY.md` walks through Railway, Render and plain Docker,
+using the `Dockerfile`, `railway.json` and `render.yaml` in this repository.
+You need an HTTPS URL before a phone can use the camera or install the app.
+
 1. **Provision Postgres** and set `DATABASE_URL`.
 2. **Provision storage.** Either persistent disk with `STORAGE_DRIVER=local`
    (and `STORAGE_LOCAL_PATH` pointing at it), or an S3-compatible bucket with
