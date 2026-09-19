@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { appUrl } from '@/lib/app-url';
 import { getEnv } from '@/lib/env';
 
 /** Best-effort client IP from proxy headers, used only for rate limiting and audit hashes. */
@@ -44,8 +45,10 @@ export function isSameOrigin(request: Request): boolean {
   try {
     const originHost = new URL(origin).host;
     if (originHost === host) return true;
-    const configured = process.env.NEXT_PUBLIC_APP_URL ?? process.env.AUTH_URL;
-    if (configured && new URL(configured).host === originHost) return true;
+    // normaliseAppUrl copes with a bare hostname, which would otherwise throw
+    // here and reject every form submission as cross-origin.
+    const configured = appUrl();
+    if (new URL(configured).host === originHost) return true;
     return false;
   } catch {
     return false;

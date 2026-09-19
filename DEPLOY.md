@@ -1,149 +1,96 @@
-# Getting Slipsy onto a phone
+# Deploying Slipsy to Vercel
 
-The app needs an **HTTPS URL** before a phone can do anything useful with it:
-the camera, the "Add to Home Screen" install and the `Secure` session cookies
-are all refused over plain HTTP. Every option below gives you one.
+Everything below is required. Vercel runs the app as serverless functions,
+which the app now handles — but not with the default settings.
 
-Pick **Railway** if you just want a link quickly.
-
----
-
-## Option 1 — Railway (quickest)
-
-1. Push this branch to GitHub (already done: `claude/happy-bohr-k38bp7`).
-2. At [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub
-   repo** → pick this repository and that branch. It reads `railway.json` and
-   builds the `Dockerfile`.
-3. In the project, **New** → **Database** → **Add PostgreSQL**.
-4. On the app service → **Variables**, add:
-
-   | Variable | Value |
-   | --- | --- |
-   | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (Railway substitutes it) |
-   | `AUTH_SECRET` | `openssl rand -base64 48` |
-   | `FILE_SIGNING_SECRET` | a different `openssl rand -base64 48` |
-   | `ADMIN_EMAIL` | your admin address |
-   | `ADMIN_INITIAL_PASSWORD` | a strong password — **not** the e-mail address |
-   | `STORAGE_LOCAL_PATH` | `/data/storage` |
-   | `OCR_CACHE_PATH` | `/data/tesseract-cache` |
-
-5. **Settings → Volumes** → add a volume mounted at `/data`. Without it,
-   uploaded slips are lost on every redeploy.
-6. **Settings → Networking** → **Generate Domain**. That URL is your link.
-7. Add two more variables set to that URL, then redeploy:
-   `AUTH_URL` and `NEXT_PUBLIC_APP_URL`.
-
-Migrations and the admin seed run automatically on every boot
-(`docker-entrypoint.sh`).
+Once these are in place a deploy is fully automatic: the build applies database
+migrations, seeds the administrator, and the cron drives exports.
 
 ---
 
-## Option 2 — Render
+## 1. A Postgres database
 
-Push the branch, then **New → Blueprint** and point it at the repository.
-`render.yaml` provisions the web service, the Postgres instance and the
-10 GB disk, and generates the secrets. You are prompted for `ADMIN_EMAIL`
-and `ADMIN_INITIAL_PASSWORD`. After the first deploy, set `AUTH_URL` and
-`NEXT_PUBLIC_APP_URL` to the assigned `*.onrender.com` URL and redeploy.
+Vercel Postgres, Neon and Supabase all work. Take **two** connection strings:
 
----
+| Variable | Which string |
+| --- | --- |
+| `DATABASE_URL` | the **pooled** one — used by the running app |
+| `DIRECT_URL` | the **direct**, non-pooled one — used for migrations |
 
-## Option 3 — Vercel
+If your provider gives only one string, set both to it.
 
-Vercel runs the app as serverless functions, which changes three things. The
-code now handles all three, but each needs configuration — Vercel will not work
-with the defaults.
+## 2. An S3 bucket — not optional
 
-**1. Storage must be S3.** Each invocation gets its own throwaway filesystem,
-so `STORAGE_DRIVER=local` would appear to work and then lose every slip. The
-app refuses to start with the local driver on Vercel rather than lose
-documents silently. Use any S3-compatible bucket (AWS, Cloudflare R2,
-Backblaze B2) **with public access blocked** — slips are served only through
-short-lived signed URLs.
+Each serverless invocation gets its own throwaway filesystem, so the local
+storage driver would appear to work and then lose every slip. The app refuses
+to start with it on Vercel rather than lose documents quietly.
 
-**2. Exports run from a cron.** A function is frozen once it responds, so the
-background job cannot finish. `vercel.json` schedules `/api/cron/exports`
-every five minutes; it needs `CRON_SECRET` set or it returns 503 and does
-nothing. Vercel sends the matching header on its own cron calls.
+Use Cloudflare R2, Backblaze B2 or AWS S3. **Block all public access** on the
+bucket — slips are served only through short-lived signed URLs.
 
-**3. OCR is slower and re-warms.** Tesseract's language data can only be
-unpacked into `/tmp`, which is per-invocation, so a cold start re-extracts
-~3 MB. The extraction route is configured for 120s. **This exceeds the Hobby
-plan's 60s function limit** — on Hobby, either use a cloud OCR provider
-(`OCR_PROVIDER=google-vision`, `aws-textract` or `azure-document-intelligence`)
-or expect large slips to time out.
+## 3. Environment variables
 
-### Setting it up
+Set these in **Project → Settings → Environment Variables**, for Production
+(and Preview if you use it).
 
-1. Import the repository at [vercel.com/new](https://vercel.com/new).
-2. Add a Postgres database (Vercel Postgres, Neon or Supabase) and set
-   `DATABASE_URL` to its **pooled** connection string.
-3. Set the environment variables:
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | pooled Postgres string |
+| `DIRECT_URL` | direct Postgres string |
+| `AUTH_SECRET` | `openssl rand -base64 48` |
+| `FILE_SIGNING_SECRET` | a **different** `openssl rand -base64 48` |
+| `CRON_SECRET` | `openssl rand -base64 32` |
+| `NEXT_PUBLIC_APP_URL` | your full URL, **including `https://`** |
+| `AUTH_URL` | the same full URL |
+| `STORAGE_DRIVER` | `s3` |
+| `S3_BUCKET`, `S3_REGION` | your bucket's name and region |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | its credentials |
+| `S3_ENDPOINT` | R2/B2 only — their S3-compatible endpoint |
+| `ADMIN_EMAIL` | the admin account's address |
+| `ADMIN_INITIAL_PASSWORD` | a strong password — **not** the e-mail address |
 
-   | Variable | Value |
-   | --- | --- |
-   | `DATABASE_URL` | pooled Postgres connection string |
-   | `AUTH_SECRET` | `openssl rand -base64 48` |
-   | `FILE_SIGNING_SECRET` | a different `openssl rand -base64 48` |
-   | `CRON_SECRET` | `openssl rand -base64 32` |
-   | `AUTH_URL`, `NEXT_PUBLIC_APP_URL` | your `*.vercel.app` URL |
-   | `STORAGE_DRIVER` | `s3` |
-   | `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | your bucket |
-   | `ADMIN_EMAIL`, `ADMIN_INITIAL_PASSWORD` | the admin account |
+> **`NEXT_PUBLIC_APP_URL` must include the scheme.** A bare hostname is
+> accepted and assumed to be `https://`, but write it in full. On the first
+> deploy you do not know the URL yet: leave both URL variables unset, deploy,
+> then set them to the assigned address and redeploy.
 
-4. Migrations do not run by themselves here — there is no boot step. Run them
-   once against the production database from your machine:
+For real password-reset e-mail, also set `EMAIL_PROVIDER=smtp` with
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `EMAIL_FROM`. Left
+as `console`, those links are printed to the function log instead of sent —
+usable for testing, not for customers.
 
-   ```bash
-   DATABASE_URL="<direct, non-pooled URL>" npx prisma migrate deploy
-   DATABASE_URL="<direct, non-pooled URL>" ADMIN_EMAIL=… ADMIN_INITIAL_PASSWORD=… npm run seed:admin
-   ```
+## 4. Deploy
 
-   Use the **direct** connection string for migrations, not the pooled one.
+Import the repository at [vercel.com/new](https://vercel.com/new) and deploy.
+The build runs `prisma generate`, applies migrations, seeds the administrator,
+then compiles. Nothing to run by hand.
 
-If you would rather not manage a bucket and a cron, Railway or Render run the
-same image with a plain disk and no such caveats.
+## 5. Check the plan limit
 
----
+`vercel.json` gives the extraction route 120 seconds. **The Hobby plan caps
+functions at 60 seconds**, so on Hobby a slow scan will time out. Either:
 
-## Option 4 — Any Docker host (VPS, Fly.io, your own box)
+- use the Pro plan, or
+- set `OCR_PROVIDER` to `google-vision`, `aws-textract` or
+  `azure-document-intelligence` with that provider's credentials — a cloud
+  call returns in a second or two and removes the problem entirely.
 
-```bash
-docker build -t slipsy .
-docker run -d --name slipsy -p 3000:3000 \
-  -e DATABASE_URL="postgresql://…" \
-  -e AUTH_SECRET="$(openssl rand -base64 48)" \
-  -e FILE_SIGNING_SECRET="$(openssl rand -base64 48)" \
-  -e AUTH_URL="https://your-domain" \
-  -e NEXT_PUBLIC_APP_URL="https://your-domain" \
-  -e ADMIN_EMAIL="you@example.com" \
-  -e ADMIN_INITIAL_PASSWORD="a-strong-password" \
-  -v slipsy-data:/data \
-  slipsy
-```
-
-Put a TLS terminator (Caddy, nginx + certbot, Cloudflare) in front of it.
-
-Building on an Apple Silicon Mac for an x86 host needs
-`docker build --platform=linux/amd64 -t slipsy .`
+Tesseract also re-unpacks ~3 MB of language data on a cold start, because only
+`/tmp` is writable and it does not survive. A cloud provider avoids that too.
 
 ---
 
-## Notes that matter on a phone
+## After the first deploy
 
-- **E-mail.** `EMAIL_PROVIDER` defaults to `console`, so verification and
-  password-reset links are printed to the service log instead of being sent.
-  Fine for testing — read them from the host's log viewer. For real use set
-  `EMAIL_PROVIDER=smtp` and the `SMTP_*` variables.
-- **The admin password.** The seed marks the account `mustChangePassword`, so
-  the portal nags until you change it. Do not reuse the e-mail address as the
-  password on a public URL.
-- **First scan is slow.** Tesseract unpacks ~3 MB of language data into
-  `OCR_CACHE_PATH` on the first OCR request. Later scans are much faster, as
-  long as that path is on the volume.
-- **Storage.** `STORAGE_DRIVER=local` needs a persistent volume and works on a
-  single instance. Scale beyond one instance and you need
-  `STORAGE_DRIVER=s3` with the `S3_*` variables — the bucket must have public
-  access blocked; slips are served only through short-lived signed URLs.
-- **Exports.** They run in-process on a normal Node host. On a serverless
-  platform also run `npm run worker:exports` as a scheduled job.
+1. Open `/admin/login`, sign in, and change the initial password — the portal
+   warns until you do.
+2. Sign up a real account and file one slip end to end.
+3. Request an export and confirm it becomes ready within about five minutes
+   (the cron interval). If it stays queued, `CRON_SECRET` is missing.
+
+## Legal pages
+
+`/privacy` and `/terms` name a placeholder legal entity. Replace the entity
+details and support address in `src/config/brand.ts` and have them reviewed
+before taking real customers. They are drafted with POPIA principles in mind;
+that is a design intent, not a claim of certification.

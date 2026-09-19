@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { brand } from '@/config/brand';
+import { appUrl } from '@/lib/app-url';
 import { ToastProvider } from '@/components/ui/toast';
 import { ServiceWorkerManager } from '@/components/pwa/service-worker-manager';
 import { NetworkStatusBanner } from '@/components/pwa/network-status-banner';
@@ -14,7 +15,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
+  metadataBase: new URL(appUrl()),
   title: {
     default: `${brand.name} — ${brand.tagline}`,
     template: `%s · ${brand.name}`,

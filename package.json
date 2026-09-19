@@ -2,10 +2,10 @@
   "name": "slipsy",
   "version": "1.0.0",
   "private": true,
-  "description": "Slipsy — Scan it. Save it. Done. Receipt and slip management for business owners.",
+  "description": "Slipsy \u2014 Scan it. Save it. Done. Receipt and slip management for business owners.",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && node scripts/migrate-deploy.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -18,7 +18,8 @@
     "prisma:seed": "tsx prisma/seed-admin.ts",
     "db:studio": "prisma studio",
     "worker:exports": "tsx src/lib/export/worker-runner.ts",
-    "seed:admin": "tsx prisma/seed-admin.ts"
+    "seed:admin": "tsx prisma/seed-admin.ts",
+    "migrate:deploy": "node scripts/migrate-deploy.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",

@@ -103,45 +103,24 @@ node scripts/generate-icons.mjs   # regenerate icons after a brand change
 
 ## Deploying
 
-The app is a standard Next.js server. Any host that runs Node works: a VPS with
-PM2 or systemd, Docker, Fly.io, Railway, Render, or Vercel.
+Deployed on **Vercel**. `DEPLOY.md` is the full checklist; the short version:
 
-**In a hurry?** `DEPLOY.md` walks through Railway, Render and plain Docker,
-using the `Dockerfile`, `railway.json` and `render.yaml` in this repository.
-You need an HTTPS URL before a phone can use the camera or install the app.
+1. A Postgres database — `DATABASE_URL` (pooled) and `DIRECT_URL` (direct).
+2. An S3-compatible bucket with public access blocked, `STORAGE_DRIVER=s3`.
+   The local driver refuses to run on Vercel, where the filesystem is not
+   persistent.
+3. The environment variables listed in `DEPLOY.md`, including `CRON_SECRET`
+   (exports) and `NEXT_PUBLIC_APP_URL` **with its `https://` scheme**.
+4. Import the repo at vercel.com/new. The build applies migrations and seeds
+   the administrator — there is no manual step.
 
-1. **Provision Postgres** and set `DATABASE_URL`.
-2. **Provision storage.** Either persistent disk with `STORAGE_DRIVER=local`
-   (and `STORAGE_LOCAL_PATH` pointing at it), or an S3-compatible bucket with
-   `STORAGE_DRIVER=s3`. **Block all public access on the bucket** — documents
-   are only ever served through short-lived signed URLs.
-3. **Set the environment** from `.env.example`. Every secret must be unique to
-   the deployment.
-4. **Run migrations** on release: `npx prisma migrate deploy`.
-5. **Seed the administrator** once: `npm run seed:admin`.
-6. **Build and start**: `npm run build && npm start`.
-7. **Serve over HTTPS.** Required for the camera, for installing the PWA, and
-   for the `Secure` session cookies.
+Exports are driven by a Vercel Cron every five minutes
+(`/api/cron/exports`, in `vercel.json`). The extraction route is configured for
+120s, which exceeds the Hobby plan's 60s limit — use Pro, or switch
+`OCR_PROVIDER` to a cloud engine.
 
-### Exports on serverless hosts
-
-Export archives are built in the background. On a long-running Node server this
-happens in-process and needs nothing extra. On a platform that freezes a
-function once it has responded (most serverless hosts), also run:
-
-```bash
-npm run worker:exports
-```
-
-as a worker process or a scheduled job. It picks up anything left queued and
-also deletes archives past their retention window, so it is worth running on a
-schedule either way.
-
-### First OCR request
-
-The default engine needs its English language data (~3 MB). It ships with the
-`@tesseract.js-data/eng` dependency, so no outbound network access is required —
-just make sure `OCR_CACHE_PATH` points somewhere writable.
+To run it on a plain Node server instead, `npm run build && npm start` with
+`STORAGE_DRIVER=local` and `npm run worker:exports` alongside works unchanged.
 
 ---
 
