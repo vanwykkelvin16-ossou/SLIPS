@@ -1,19 +1,31 @@
+# Leading slashes matter: an unanchored rule like `storage/` matches a
+# directory of that name at ANY depth, which once silently excluded
+# src/lib/storage/ from the repository. Anchor anything that names a
+# build or runtime directory at the project root.
+
+/node_modules/
 node_modules/
-.next/
-out/
-build/
-dist/
-storage/
+
+/.next/
+/out/
+/build/
+/dist/
+
+# Uploaded slips when STORAGE_DRIVER=local. The storage *adapter* lives in
+# src/lib/storage/ and must stay tracked.
+/storage/
+
 *.log
 .env
 .env.local
 .env.*.local
-coverage/
-playwright-report/
-test-results/
+
+/coverage/
+/playwright-report/
+/test-results/
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
 .vercel
 
-.tesseract-cache/
+/.tesseract-cache/
