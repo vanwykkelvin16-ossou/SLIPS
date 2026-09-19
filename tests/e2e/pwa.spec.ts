@@ -1,13 +1,36 @@
 import { expect, test, type Page } from '@playwright/test';
 import { completeOnboarding, newAccount, signUp } from './helpers';
 
-/** True once a service worker is registered and activated for this page. */
+/**
+ * True once a service worker is registered and activated for this page.
+ *
+ * Registration happens around hydration, and a navigation at that moment
+ * destroys the execution context mid-evaluate. That is a "not yet", not a
+ * failure, so it is swallowed and the caller polls again.
+ */
 async function hasActiveWorker(page: Page): Promise<boolean> {
-  return page.evaluate(async () => {
-    if (!('serviceWorker' in navigator)) return false;
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    return registrations.some((registration) => Boolean(registration.active));
-  });
+  try {
+    return await page.evaluate(async () => {
+      if (!('serviceWorker' in navigator)) return false;
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      return registrations.some((registration) => Boolean(registration.active));
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Runs a probe in the page, treating a navigation that destroys the execution
+ * context as "no answer yet" rather than a failure. Every cache probe here is
+ * polled, so the caller simply tries again.
+ */
+async function probe<T>(page: Page, fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await page.evaluate(fn);
+  } catch {
+    return fallback;
+  }
 }
 
 test.describe('progressive web app', () => {
@@ -63,14 +86,18 @@ test.describe('progressive web app', () => {
     await expect
       .poll(
         async () =>
-          page.evaluate(async () => {
-            const keys = await caches.keys();
-            for (const key of keys) {
-              const cache = await caches.open(key);
-              if (await cache.match('/offline')) return true;
-            }
-            return false;
-          }),
+          probe(
+            page,
+            async () => {
+              const keys = await caches.keys();
+              for (const key of keys) {
+                const cache = await caches.open(key);
+                if (await cache.match('/offline')) return true;
+              }
+              return false;
+            },
+            false,
+          ),
         { timeout: 15_000 },
       )
       .toBe(true);
@@ -80,14 +107,22 @@ test.describe('progressive web app', () => {
     await page.goto('/login');
     await expect.poll(() => hasActiveWorker(page), { timeout: 20_000 }).toBe(true);
 
-    const cached = await page.evaluate(async () => {
-      const found: string[] = [];
-      for (const key of await caches.keys()) {
-        const cache = await caches.open(key);
-        for (const request of await cache.keys()) found.push(new URL(request.url).pathname);
-      }
-      return found;
-    });
+    const cached = await probe<string[]>(
+      page,
+      async () => {
+        const found: string[] = [];
+        for (const key of await caches.keys()) {
+          const cache = await caches.open(key);
+          for (const request of await cache.keys()) found.push(new URL(request.url).pathname);
+        }
+        return found;
+      },
+      [],
+    );
+
+    // An empty listing would pass the loop below vacuously, so insist the
+    // shell really was cached before judging what is in it.
+    expect(cached.length).toBeGreaterThan(0);
 
     // Only public assets and the offline shell may be stored.
     for (const path of cached) {

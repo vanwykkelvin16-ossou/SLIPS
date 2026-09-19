@@ -34,6 +34,24 @@ export function newAccount(label = 'user'): TestAccount {
  */
 export async function waitForHydration(page: Page): Promise<void> {
   await page.waitForSelector('next-route-announcer', { state: 'attached', timeout: 20_000 }).catch(() => undefined);
+
+  /*
+   * The route announcer appears before React attaches, so filling a field here
+   * races hydration: the typed value passes its own check and is then wiped
+   * when React takes over the input. React marks every DOM node it owns with
+   * a __reactFiber$… key, so wait for that on the form itself.
+   */
+  await page
+    .waitForFunction(
+      () => {
+        const form = document.querySelector('form');
+        if (!form) return true; // Nothing to fill on this page.
+        return Object.keys(form).some((key) => key.startsWith('__react'));
+      },
+      undefined,
+      { timeout: 20_000 },
+    )
+    .catch(() => undefined);
 }
 
 /** Fills a field and confirms the value stuck, re-filling once if it did not. */
@@ -65,7 +83,14 @@ export async function fillForm(page: Page, entries: Array<[ReturnType<Page['getB
         allGood = false;
       }
     }
-    if (allGood) return;
+    if (allGood) {
+      // One more look after a beat: a late hydration pass can still clear a
+      // field that was correct a moment ago.
+      await page.waitForTimeout(150);
+      const settled = await Promise.all(entries.map(async ([field, value]) => (await field.inputValue()) === value));
+      if (settled.every(Boolean)) return;
+      continue;
+    }
     await page.waitForTimeout(250);
   }
 
