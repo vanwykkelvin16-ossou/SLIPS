@@ -42,7 +42,7 @@ export class TesseractOcrProvider implements OcrProvider {
       // with no outbound internet access. Without it Tesseract fetches ~3 MB
       // from a public CDN on first use.
       ...(langPath ? { langPath } : {}),
-      cachePath: process.env.OCR_CACHE_PATH || './.tesseract-cache',
+      cachePath: resolveCachePath(),
       gzip: true,
       logger: () => undefined,
     });
@@ -72,6 +72,23 @@ let cachedLangPath: string | null | undefined;
  * otherwise the copy installed with @tesseract.js-data/eng is used. Returning
  * null lets Tesseract fall back to its CDN, which only works online.
  */
+/**
+ * Where Tesseract may unpack its language data.
+ *
+ * Only /tmp is writable on a serverless host, and it is per-invocation, so the
+ * ~3 MB of data is re-extracted on a cold start. That is the cost of running
+ * this engine there; a container with a volume keeps the cache between
+ * requests.
+ */
+function resolveCachePath(): string {
+  const configured = process.env.OCR_CACHE_PATH;
+  if (configured) return configured;
+  if (process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return '/tmp/.tesseract-cache';
+  }
+  return './.tesseract-cache';
+}
+
 function resolveLanguagePath(): string | null {
   if (cachedLangPath !== undefined) return cachedLangPath;
 

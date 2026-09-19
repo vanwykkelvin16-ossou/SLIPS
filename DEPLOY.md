@@ -48,7 +48,65 @@ and `ADMIN_INITIAL_PASSWORD`. After the first deploy, set `AUTH_URL` and
 
 ---
 
-## Option 3 — Any Docker host (VPS, Fly.io, your own box)
+## Option 3 — Vercel
+
+Vercel runs the app as serverless functions, which changes three things. The
+code now handles all three, but each needs configuration — Vercel will not work
+with the defaults.
+
+**1. Storage must be S3.** Each invocation gets its own throwaway filesystem,
+so `STORAGE_DRIVER=local` would appear to work and then lose every slip. The
+app refuses to start with the local driver on Vercel rather than lose
+documents silently. Use any S3-compatible bucket (AWS, Cloudflare R2,
+Backblaze B2) **with public access blocked** — slips are served only through
+short-lived signed URLs.
+
+**2. Exports run from a cron.** A function is frozen once it responds, so the
+background job cannot finish. `vercel.json` schedules `/api/cron/exports`
+every five minutes; it needs `CRON_SECRET` set or it returns 503 and does
+nothing. Vercel sends the matching header on its own cron calls.
+
+**3. OCR is slower and re-warms.** Tesseract's language data can only be
+unpacked into `/tmp`, which is per-invocation, so a cold start re-extracts
+~3 MB. The extraction route is configured for 120s. **This exceeds the Hobby
+plan's 60s function limit** — on Hobby, either use a cloud OCR provider
+(`OCR_PROVIDER=google-vision`, `aws-textract` or `azure-document-intelligence`)
+or expect large slips to time out.
+
+### Setting it up
+
+1. Import the repository at [vercel.com/new](https://vercel.com/new).
+2. Add a Postgres database (Vercel Postgres, Neon or Supabase) and set
+   `DATABASE_URL` to its **pooled** connection string.
+3. Set the environment variables:
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | pooled Postgres connection string |
+   | `AUTH_SECRET` | `openssl rand -base64 48` |
+   | `FILE_SIGNING_SECRET` | a different `openssl rand -base64 48` |
+   | `CRON_SECRET` | `openssl rand -base64 32` |
+   | `AUTH_URL`, `NEXT_PUBLIC_APP_URL` | your `*.vercel.app` URL |
+   | `STORAGE_DRIVER` | `s3` |
+   | `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | your bucket |
+   | `ADMIN_EMAIL`, `ADMIN_INITIAL_PASSWORD` | the admin account |
+
+4. Migrations do not run by themselves here — there is no boot step. Run them
+   once against the production database from your machine:
+
+   ```bash
+   DATABASE_URL="<direct, non-pooled URL>" npx prisma migrate deploy
+   DATABASE_URL="<direct, non-pooled URL>" ADMIN_EMAIL=… ADMIN_INITIAL_PASSWORD=… npm run seed:admin
+   ```
+
+   Use the **direct** connection string for migrations, not the pooled one.
+
+If you would rather not manage a bucket and a cron, Railway or Render run the
+same image with a plain disk and no such caveats.
+
+---
+
+## Option 4 — Any Docker host (VPS, Fly.io, your own box)
 
 ```bash
 docker build -t slipsy .

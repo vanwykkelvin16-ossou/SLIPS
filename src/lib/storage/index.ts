@@ -12,6 +12,19 @@ export function getStorage(): StorageAdapter {
   if (adapter) return adapter;
   const env = getEnv();
 
+  /*
+   * A serverless host gives each invocation its own throwaway filesystem, so
+   * the local driver would appear to work and then lose every slip. Refuse it
+   * loudly instead — the failure is obvious at the first upload rather than
+   * weeks later when someone looks for a receipt.
+   */
+  if (env.STORAGE_DRIVER === 'local' && process.env.VERCEL === '1') {
+    throw new Error(
+      'STORAGE_DRIVER=local cannot be used on Vercel: the filesystem is not persistent and uploaded slips would be lost. ' +
+        'Set STORAGE_DRIVER=s3 with S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.',
+    );
+  }
+
   if (env.STORAGE_DRIVER === 's3') {
     if (!env.S3_BUCKET || !env.S3_REGION) {
       throw new Error('STORAGE_DRIVER=s3 requires S3_BUCKET and S3_REGION to be set.');
