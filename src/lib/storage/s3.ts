@@ -26,16 +26,32 @@ export class S3StorageAdapter implements StorageAdapter {
   readonly name = 's3';
   private readonly client: S3Client;
   private readonly bucket: string;
+  private readonly useAwsEncryptionHeader: boolean;
 
   constructor(config: S3AdapterConfig) {
     this.bucket = config.bucket;
+    // R2 encrypts at rest but rejects AWS's SSE header.
+    this.useAwsEncryptionHeader = !config.endpoint;
     this.client = new S3Client({
       region: config.region,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
       ...(config.endpoint ? { endpoint: config.endpoint } : {}),
       ...(config.forcePathStyle ? { forcePathStyle: true } : {}),
       ...(config.accessKeyId && config.secretAccessKey
         ? { credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey } }
         : {}),
+    });
+  }
+
+  async presignedUploadUrl(key: string, contentType: string, sizeBytes: number): Promise<string> {
+    return getSignedUrl(this.client, new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: sizeBytes,
+    }), {
+      expiresIn: 600,
+      signableHeaders: new Set(['content-type', 'content-length']),
     });
   }
 
@@ -46,7 +62,7 @@ export class S3StorageAdapter implements StorageAdapter {
         Key: key,
         Body: body,
         ContentType: contentType,
-        ServerSideEncryption: 'AES256',
+        ...(this.useAwsEncryptionHeader ? { ServerSideEncryption: 'AES256' as const } : {}),
       }),
     );
     return { key, sizeBytes: body.byteLength, contentType };
@@ -64,7 +80,7 @@ export class S3StorageAdapter implements StorageAdapter {
         Body: createReadStream(filePath),
         ContentLength: info.size,
         ContentType: contentType,
-        ServerSideEncryption: 'AES256',
+        ...(this.useAwsEncryptionHeader ? { ServerSideEncryption: 'AES256' as const } : {}),
       }),
     );
 

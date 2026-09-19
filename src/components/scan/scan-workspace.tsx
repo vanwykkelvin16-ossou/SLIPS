@@ -9,6 +9,8 @@ import { ErrorState } from '@/components/ui/states';
 import { useToast } from '@/components/ui/toast';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { enqueueUpload, newUploadId } from '@/lib/client/upload-queue';
+import { uploadReceipt } from '@/lib/client/upload';
+import { ApiError } from '@/lib/client/api-client';
 import { UPLOAD_ACCEPT_ATTRIBUTE } from '@/lib/storage/upload-constraints';
 import { CameraCapture } from './camera-capture';
 import { PageEditor } from './page-editor';
@@ -45,7 +47,7 @@ export function ScanWorkspace({ initialMode }: { initialMode: 'camera' | 'upload
   const [success, setSuccess] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef<XMLHttpRequest | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const startedFromUpload = useRef(initialMode === 'upload');
 
   useEffect(() => {
@@ -107,54 +109,28 @@ export function ScanWorkspace({ initialMode }: { initialMode: 'camera' | 'upload
     setProgressStep(0);
     setProgressValue(0);
 
-    const body = new FormData();
-    body.set('clientUploadId', uploadId);
-    pages.forEach((page, index) => {
-      const extension = page.blob.type === 'application/pdf' ? 'pdf' : 'jpg';
-      body.append('files', new File([page.blob], page.name || `page-${index + 1}.${extension}`, { type: page.blob.type || 'image/jpeg' }));
-    });
-
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const files = pages.map((page, index) => new File([page.blob], page.name || `page-${index + 1}.jpg`, {
+      type: page.blob.type || 'application/octet-stream',
+    }));
     let receiptId: string;
     try {
-      receiptId = await new Promise<string>((resolve, reject) => {
-        const request = new XMLHttpRequest();
-        abortRef.current = request;
-        request.open('POST', '/api/receipts/upload');
-        request.withCredentials = true;
-
-        request.upload.onprogress = (event) => {
-          if (!event.lengthComputable) return;
-          setProgressValue(Math.round((event.loaded / event.total) * 55));
-        };
-
-        request.onload = () => {
-          try {
-            const payload = JSON.parse(request.responseText || '{}');
-            if (request.status >= 200 && request.status < 300 && payload.receiptId) {
-              resolve(payload.receiptId as string);
-            } else {
-              reject(new Error(payload.error ?? 'That upload did not go through.'));
-            }
-          } catch {
-            reject(new Error('That upload did not go through.'));
-          }
-        };
-        request.onerror = () => reject(new Error('offline'));
-        request.onabort = () => reject(new Error('cancelled'));
-        request.send(body);
-      });
+      ({ receiptId } = await uploadReceipt(files, uploadId, {
+        signal: controller.signal,
+        onProgress: (percentage) => setProgressValue(Math.round(percentage * 0.55)),
+      }));
     } catch (error) {
       abortRef.current = null;
-      const message = error instanceof Error ? error.message : 'That upload did not go through.';
-      if (message === 'cancelled') {
+      if (controller.signal.aborted) {
         setStage('pages');
         return;
       }
-      if (message === 'offline') {
+      if (error instanceof ApiError && error.isOffline) {
         await queueForLater(uploadId);
         return;
       }
-      setErrorMessage(message);
+      setErrorMessage(error instanceof Error ? error.message : 'That upload did not go through.');
       setStage('error');
       return;
     }

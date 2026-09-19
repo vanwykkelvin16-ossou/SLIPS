@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     },
   });
 
-  if (!file) return notFound('That document');
+  if (!file || file.receipt.deletedAt) return notFound('That document');
 
   const storage = getStorage();
 
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
   // short-lived URL instead of proxying the bytes through the application.
   const presigned = await storage.presignedUrl(file.storageKey, 120, grant.downloadFilename);
   if (presigned) {
-    return NextResponse.redirect(presigned, { status: 307 });
+    return NextResponse.redirect(presigned, { status: 307, headers: { 'Cache-Control': 'private, no-store' } });
   }
 
   let stream: NodeJS.ReadableStream;

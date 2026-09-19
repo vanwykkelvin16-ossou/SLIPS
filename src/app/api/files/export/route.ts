@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   const filename = (grant.downloadFilename ?? `${job.label ?? 'slipsy-export'}.zip`).replace(/["\\\r\n]/g, '');
 
   const presigned = await storage.presignedUrl(job.storageKey, 120, filename);
-  if (presigned) return NextResponse.redirect(presigned, { status: 307 });
+  if (presigned) return NextResponse.redirect(presigned, { status: 307, headers: { 'Cache-Control': 'private, no-store' } });
 
   let stream: NodeJS.ReadableStream;
   try {

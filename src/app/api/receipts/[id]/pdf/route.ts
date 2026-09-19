@@ -83,6 +83,13 @@ export const GET = withWorkspace<{ id: string }>(async ({ request, session, para
     request,
   });
 
+  if (storage.name === 's3') {
+    const key = `generated/${session.businessId}/${receipt.id}/${receipt.updatedAt.getTime()}.pdf`;
+    await storage.put({ key, body: Buffer.from(pdf), contentType: 'application/pdf' });
+    const url = await storage.presignedUrl(key, 120, filename);
+    if (url) return NextResponse.redirect(url, { status: 307, headers: { 'Cache-Control': 'private, no-store' } });
+  }
+
   return new NextResponse(pdf as unknown as BodyInit, {
     headers: {
       'Content-Type': 'application/pdf',

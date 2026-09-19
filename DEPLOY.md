@@ -1,119 +1,132 @@
-# Deploying Slipsy to Vercel
+# Deploy SLIPS / Slipsy manually to Vercel
 
-Everything below is required. Vercel runs the app as serverless functions,
-which the app now handles — but not with the default settings.
+The app is a Next.js application with a PostgreSQL database, private S3-compatible
+file storage and SMTP email. Importing the source alone does not provision these
+services. Use `.env.vercel.example` as the list of settings to add to Vercel.
+Never commit real credentials.
 
-Once these are in place a deploy is fully automatic: the build applies database
-migrations, seeds the administrator, and the cron drives exports.
+## 1. Select the source and build settings
 
----
-
-## 1. A Postgres database
-
-Vercel Postgres, Neon and Supabase all work. Take **two** connection strings:
-
-| Variable | Which string |
+| Setting | Value |
 | --- | --- |
-| `DATABASE_URL` | the **pooled** one — used by the running app |
-| `DIRECT_URL` | the **direct**, non-pooled one — used for migrations |
+| Repository | `vanwykkelvin16-ossou/SLIPS` |
+| Production branch | `claude/happy-bohr-k38bp7` |
+| Root directory | Repository root (leave blank) |
+| Framework | Next.js |
+| Node.js | 22.x or 24.x |
+| Install command | `npm ci` |
+| Build command | `npm run build` |
+| Output directory | Next.js default (do not enter `dist`) |
+| Compute | Fluid Compute enabled |
+| Plan | Pro or Enterprise for the included five-minute export cron |
 
-If your provider gives only one string, set both to it.
+The build settings are also in `vercel.json`. Automatic Git-triggered deployments
+are disabled (`git.deploymentEnabled=false`) so you control the manual launch.
+Set this to true later if you want pushes to deploy automatically. The build first checks required
+configuration, then generates Prisma, applies migrations, seeds the admin account
+and compiles the app. An existing administrator's password is preserved.
+A local build without Vercel settings is a compile check only.
 
-## 2. An S3 bucket — not optional
+## 2. Add environment variables before deploying
 
-Each serverless invocation gets its own throwaway filesystem, so the local
-storage driver would appear to work and then lose every slip. The app refuses
-to start with it on Vercel rather than lose documents quietly.
+Add them to **Production**. For Preview deployments, use a separate database and
+bucket: the build applies migrations to the configured database.
 
-Use Cloudflare R2, Backblaze B2 or AWS S3. **Block all public access** on the
-bucket — slips are served only through short-lived signed URLs.
-
-## 3. Environment variables
-
-Set these in **Project → Settings → Environment Variables**, for Production
-(and Preview if you use it).
-
-| Variable | Value |
+| Purpose | Variables / values |
 | --- | --- |
-| `DATABASE_URL` | pooled Postgres string |
-| `DIRECT_URL` | direct Postgres string |
-| `AUTH_SECRET` | `openssl rand -base64 48` |
-| `FILE_SIGNING_SECRET` | a **different** `openssl rand -base64 48` |
-| `CRON_SECRET` | `openssl rand -base64 32` |
-| `NEXT_PUBLIC_APP_URL` | your full URL, **including `https://`** |
-| `AUTH_URL` | the same full URL |
-| `STORAGE_DRIVER` | `s3` |
-| `S3_BUCKET`, `S3_REGION` | your bucket's name and region |
-| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | its credentials |
-| `S3_ENDPOINT` | R2/B2 only — their S3-compatible endpoint |
-| `ADMIN_EMAIL` | the admin account's address |
-| `ADMIN_INITIAL_PASSWORD` | a strong password — **not** the e-mail address |
+| PostgreSQL | `DATABASE_URL` = pooled hosted connection; `DIRECT_URL` = direct connection for migrations (optional when the main URL is already direct) |
+| Signing | `AUTH_SECRET`, `FILE_SIGNING_SECRET`, `CRON_SECRET`: different random values of at least 32 characters |
+| Administrator | `ADMIN_EMAIL`, `ADMIN_INITIAL_PASSWORD` (12+ characters, not the email), optional `ADMIN_NAME` |
+| Private storage | `STORAGE_DRIVER=s3`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` |
+| R2 or other custom S3 service | `S3_ENDPOINT` = full HTTPS endpoint; for R2 use `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=true` |
+| Email | `EMAIL_PROVIDER=smtp`, `EMAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE` |
+| OCR | `OCR_PROVIDER=tesseract`; leave `OCR_CACHE_PATH` unset or use `/tmp/.tesseract-cache` |
+| Public URL | Optional initially: `NEXT_PUBLIC_APP_URL` and `AUTH_URL`. When set, both must be your full HTTPS origin |
 
-> **`NEXT_PUBLIC_APP_URL` must include the scheme.** A bare hostname is
-> accepted and assumed to be `https://`, but write it in full. On the first
-> deploy you do not know the URL yet: leave both URL variables unset, deploy,
-> then set them to the assigned address and redeploy.
+Generate each signing secret separately with `openssl rand -base64 48`.
+SMTP usually uses port 587 with `SMTP_SECURE=false` (STARTTLS), or port 465 with
+`SMTP_SECURE=true`. Use your provider's actual settings and a verified sender.
+Database credentials must allow schema migrations, not only reads.
 
-For real password-reset e-mail, also set `EMAIL_PROVIDER=smtp` with
-`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `EMAIL_FROM`. Left
-as `console`, those links are printed to the function log instead of sent —
-usable for testing, not for customers.
+You can check a filled, ignored local copy before deploying:
 
-## 4. Deploy
+```bash
+node --env-file=.env.vercel.local scripts/check-deployment.mjs
+```
 
-Import the repository at [vercel.com/new](https://vercel.com/new) and deploy.
-The build runs `prisma generate`, applies migrations, seeds the administrator,
-then compiles. Nothing to run by hand.
+This checks configuration presence and format, not live service credentials.
+Cloud OCR providers remain optional; each needs its own credentials. Tesseract
+handles images and text PDFs; scanned image-only PDFs need a cloud OCR provider
+or manual entry. Its language data is included in the server bundle.
 
-## 5. Plan, OCR and upload limits
+## 3. Configure the private bucket
 
-The five-minute export cron in `vercel.json` requires Vercel Pro or Enterprise.
-Hobby permits only daily cron jobs and rejects this schedule at deployment.
-Do not change it to daily unless you accept delayed exports or arrange a separate
-scheduler. See [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing).
+Keep public access disabled. Browser uploads use signed PUT URLs valid for ten
+minutes. The app then verifies the user, business, size and actual file contents,
+and copies validated bytes to a separate permanent key. Downloads require an
+app session and return a signed GET URL valid for two minutes.
 
-With Fluid Compute enabled, Hobby supports up to 300 seconds per invocation;
-the configured OCR route uses 120 seconds and the export worker uses 300.
-Older compute settings have different limits. Cloud OCR is optional, and does
-not remove the cron plan requirement.
+Set bucket CORS to your exact production origin. Add a preview origin only when
+you use that environment. Example CORS rule (R2 UI accepts the array below; AWS
+S3 also accepts this rule array in its CORS editor):
 
-Tesseract language data is included in the function bundle. On Vercel, leave
-`OCR_CACHE_PATH` unset (the app uses `/tmp/.tesseract-cache`), or explicitly
-set it to `/tmp/.tesseract-cache`. Do not copy the local cache path from the
-example environment into production.
+```json
+[
+  {
+    "AllowedOrigins": ["https://YOUR-PRODUCTION-DOMAIN"],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedHeaders": ["content-type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
 
-The current upload endpoint accepts multipart files through a Vercel Function.
-Vercel limits the **entire request and response body to 4.5 MB**, regardless of
-the app's per-file setting. Keep each upload batch below 4 MB. Supporting larger
-uploads or archive downloads requires direct private object-storage transfers;
-raising `MAX_UPLOAD_BYTES` alone will not solve it. This remains a go-live
-limitation of the current upload/download architecture.
-See [Vercel Function limits](https://vercel.com/docs/functions/limitations).
+Configure two separate one-day expiration lifecycle rules, scoped precisely to:
 
-## 6. Project settings
+- `staging/` — abandoned temporary uploads.
+- `generated/` — regenerable PDF download copies.
 
-- Framework: **Next.js**; root directory: repository root.
-- Install command: `npm ci`; build command: `npm run build`.
-- Output directory: leave the Next.js default.
-- Production branch: `claude/happy-bohr-k38bp7` (the repository's default branch).
-- A successful build with no `DATABASE_URL` is a compile-only check: migrations
-  are skipped and accounts/uploads cannot work until real services are connected.
-- After deployment, confirm the intended public audience in Vercel's Deployment
-  Protection settings. A ready deployment can still require a Vercel sign-in.
+**Do not apply these rules to `businesses/` or the whole bucket.** That prefix
+contains original slips and saved exports. Completed staging objects are also
+removed by the app; lifecycle rules clean abandoned uploads and download copies.
+Use a bucket-scoped key with GetObject, PutObject, DeleteObject and HeadObject
+access. R2's object read/write permission provides the needed object operations.
 
----
+Uploads and downloads bypass Vercel's 4.5 MB function payload limit. The app's
+per-file limit defaults to 15 MiB and up to 10 pages per receipt. The server still
+validates all original file bytes; the bucket must never be made public.
 
-## After the first deploy
+## 4. Deploy and verify the real services
 
-1. Open `/admin/login`, sign in, and change the initial password — the portal
-   warns until you do.
-2. Sign up a real account and file one slip end to end.
-3. Request an export and confirm it becomes ready within about five minutes
-   (the cron interval). If it stays queued, `CRON_SECRET` is missing.
+1. Import the repository/branch above, or use **Create Deployment** in the
+   existing `slips` project and select the updated branch/commit. Redeploying
+   an old failed deployment can rebuild its old commit, so check the source SHA. The build will name missing settings without printing
+   their values. Correct them in Vercel and redeploy.
+2. For a public launch, review Vercel Deployment Protection yourself: users must
+   be able to reach the app's own signup/login without a Vercel account.
+3. Open `/admin/login`, sign in and change the initial admin password.
+4. Create a test business account; complete onboarding; verify the email arrives.
+5. Upload a photo and a PDF larger than 4.5 MB. Check OCR/manual review, save,
+   preview, original download and generated PDF download.
+6. Sign out/in and confirm the slips remain. Test another account to confirm
+   it cannot access the first account's documents.
+7. Request an export. It should complete after a scheduled run (normally within
+   about five minutes plus processing time). Download the ZIP.
+8. Test password reset, then add the PWA to an iPhone/Android home screen.
+9. Replace the legal entity and support address in `src/config/brand.ts` with
+   your actual business details before inviting customers.
 
-## Legal pages
+These service-backed checks require your real database, bucket and email account;
+passing local tests and compilation does not prove they are configured.
 
-`/privacy` and `/terms` name a placeholder legal entity. Replace the entity
-details and support address in `src/config/brand.ts` and have them reviewed
-before taking real customers. They are drafted with POPIA principles in mind;
-that is a design intent, not a claim of certification.
+## Plan and platform notes
+
+The included `*/5 * * * *` schedule requires Pro/Enterprise. Hobby allows only
+one daily cron invocation and rejects this schedule. Changing OCR provider does
+not remove that restriction. No paid plan is purchased by this repository.
+
+- [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing)
+- [Vercel Function limits](https://vercel.com/docs/functions/limitations)
+- [R2 CORS](https://developers.cloudflare.com/r2/buckets/cors/)
+- [R2 S3 compatibility](https://developers.cloudflare.com/r2/api/s3/api/)

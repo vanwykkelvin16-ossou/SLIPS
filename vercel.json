@@ -14,5 +14,10 @@
     "src/app/api/cron/exports/route.ts": {
       "maxDuration": 300
     }
+  },
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "git": {
+    "deploymentEnabled": false
   }
 }

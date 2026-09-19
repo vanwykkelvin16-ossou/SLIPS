@@ -108,6 +108,7 @@ export async function createReceiptFromUploads(options: {
       data: {
         businessId,
         uploadedByUserId: userId,
+        clientUploadId: options.clientUploadId ?? null,
         status: ReceiptStatus.PROCESSING,
         currency,
         fileHash: first.sha256,

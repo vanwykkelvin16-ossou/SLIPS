@@ -1,4 +1,17 @@
-/** @type {import('next').NextConfig} */
+// Permit only the configured private storage hosts for signed uploads/previews.
+const storageOrigins = [];
+if (process.env.S3_ENDPOINT) {
+  const endpoint = new URL(process.env.S3_ENDPOINT);
+  storageOrigins.push(endpoint.origin);
+  if (process.env.S3_FORCE_PATH_STYLE !== 'true' && process.env.S3_BUCKET) {
+    storageOrigins.push(`${endpoint.protocol}//${process.env.S3_BUCKET}.${endpoint.host}`);
+  }
+} else if (process.env.S3_BUCKET && process.env.S3_REGION) {
+  storageOrigins.push(`https://${process.env.S3_BUCKET}.s3.${process.env.S3_REGION}.amazonaws.com`);
+  if (process.env.S3_FORCE_PATH_STYLE === 'true') storageOrigins.push(`https://s3.${process.env.S3_REGION}.amazonaws.com`);
+}
+const storageSources = storageOrigins.join(' ');
+
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -10,9 +23,10 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      `img-src 'self' data: blob: ${storageSources}`,
       "font-src 'self' data:",
-      "connect-src 'self'",
+      `connect-src 'self' ${storageSources}`,
+      `frame-src 'self' ${storageSources}`,
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -21,6 +35,7 @@ const securityHeaders = [
   },
 ];
 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,

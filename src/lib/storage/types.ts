@@ -17,6 +17,7 @@ export interface PutObjectInput {
  */
 export interface StorageAdapter {
   readonly name: string;
+  presignedUploadUrl?(key: string, contentType: string, sizeBytes: number): Promise<string>;
   put(input: PutObjectInput): Promise<StoredObject>;
   /** Uploads straight from a file on disk so large exports are never buffered in memory. */
   putFile(key: string, filePath: string, contentType: string): Promise<StoredObject>;

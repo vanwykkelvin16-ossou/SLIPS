@@ -1,5 +1,8 @@
 'use client';
 
+import { uploadReceipt } from './upload';
+import { ApiError } from './api-client';
+
 /**
  * Offline upload queue.
  *
@@ -146,35 +149,19 @@ export async function flushQueue(): Promise<FlushResult> {
     if (item.attempts >= MAX_ATTEMPTS) continue;
     if (typeof navigator !== 'undefined' && !navigator.onLine) break;
 
-    const body = new FormData();
-    body.set('clientUploadId', item.id);
-    for (const file of item.files) {
-      body.append('files', new File([file.blob], file.name, { type: file.type }));
-    }
-
     try {
-      const response = await fetch('/api/receipts/upload', { method: 'POST', body, credentials: 'same-origin' });
-      if (response.ok) {
-        const payload = (await response.json()) as { receiptId?: string };
-        await removeFromQueue(item.id);
-        if (payload.receiptId) uploaded.push(payload.receiptId);
-        continue;
-      }
-
-      // 4xx other than auth/rate-limit means this item will never succeed.
-      if (response.status >= 400 && response.status < 500 && ![401, 408, 429].includes(response.status)) {
-        await removeFromQueue(item.id);
-        failed += 1;
-        continue;
-      }
-
-      await markAttempt(item.id, `server responded ${response.status}`);
+      const files = item.files.map((file) => new File([file.blob], file.name, { type: file.type }));
+      const result = await uploadReceipt(files, item.id);
+      await removeFromQueue(item.id);
+      uploaded.push(result.receiptId);
+    } catch (error) {
+      // Keep original offline captures on the device after any failure.
+      // A permanent error must never silently discard the user's only copy.
+      await markAttempt(item.id, error instanceof Error ? error.message : 'Upload failed');
       failed += 1;
-    } catch {
-      await markAttempt(item.id, 'network unavailable');
-      failed += 1;
-      break; // Still offline — stop and try again on the next online event.
+      if (error instanceof ApiError && error.isOffline) break;
     }
+
   }
 
   return { uploaded, failed, remaining: await queueLength() };
