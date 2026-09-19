@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import { appUrl } from './app-url';
+
+const envBoolean = (fallback: boolean) => z.preprocess(
+  (value) => typeof value === 'string' ? value.trim().toLowerCase() : value,
+  z.union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')]).default(fallback),
+);
 
 /**
  * Server-side environment. Parsed once at module load so a misconfigured
@@ -21,7 +27,7 @@ const serverSchema = z.object({
   S3_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
-  S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false),
+  S3_FORCE_PATH_STYLE: envBoolean(false),
 
   OCR_PROVIDER: z.enum(['tesseract', 'google-vision', 'aws-textract', 'azure-document-intelligence']).default('tesseract'),
   GOOGLE_VISION_API_KEY: z.string().optional(),
@@ -37,7 +43,7 @@ const serverSchema = z.object({
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-  SMTP_SECURE: z.coerce.boolean().default(true),
+  SMTP_SECURE: envBoolean(true),
 
   MALWARE_SCAN_PROVIDER: z.enum(['none', 'clamav', 'webhook']).default('none'),
   CLAMAV_HOST: z.string().optional(),
@@ -68,11 +74,7 @@ export function getEnv(): ServerEnv {
 
 /** Public app URL used for links in e-mails and signed download URLs. */
 export function getAppUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.AUTH_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  ).replace(/\/$/, '');
+  return appUrl();
 }
 
 export const isProduction = () => process.env.NODE_ENV === 'production';

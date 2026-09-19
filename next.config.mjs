@@ -26,6 +26,9 @@ const nextConfig = {
   poweredByHeader: false,
   eslint: { ignoreDuringBuilds: false },
   experimental: {
+    outputFileTracingIncludes: {
+      '/api/receipts/*/process': ['./node_modules/@tesseract.js-data/eng/**/*'],
+    },
     /*
      * These packages ship worker scripts, native binaries or their own asset
      * paths and must stay in node_modules rather than being bundled — otherwise

@@ -65,18 +65,41 @@ Import the repository at [vercel.com/new](https://vercel.com/new) and deploy.
 The build runs `prisma generate`, applies migrations, seeds the administrator,
 then compiles. Nothing to run by hand.
 
-## 5. Check the plan limit
+## 5. Plan, OCR and upload limits
 
-`vercel.json` gives the extraction route 120 seconds. **The Hobby plan caps
-functions at 60 seconds**, so on Hobby a slow scan will time out. Either:
+The five-minute export cron in `vercel.json` requires Vercel Pro or Enterprise.
+Hobby permits only daily cron jobs and rejects this schedule at deployment.
+Do not change it to daily unless you accept delayed exports or arrange a separate
+scheduler. See [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing).
 
-- use the Pro plan, or
-- set `OCR_PROVIDER` to `google-vision`, `aws-textract` or
-  `azure-document-intelligence` with that provider's credentials — a cloud
-  call returns in a second or two and removes the problem entirely.
+With Fluid Compute enabled, Hobby supports up to 300 seconds per invocation;
+the configured OCR route uses 120 seconds and the export worker uses 300.
+Older compute settings have different limits. Cloud OCR is optional, and does
+not remove the cron plan requirement.
 
-Tesseract also re-unpacks ~3 MB of language data on a cold start, because only
-`/tmp` is writable and it does not survive. A cloud provider avoids that too.
+Tesseract language data is included in the function bundle. On Vercel, leave
+`OCR_CACHE_PATH` unset (the app uses `/tmp/.tesseract-cache`), or explicitly
+set it to `/tmp/.tesseract-cache`. Do not copy the local cache path from the
+example environment into production.
+
+The current upload endpoint accepts multipart files through a Vercel Function.
+Vercel limits the **entire request and response body to 4.5 MB**, regardless of
+the app's per-file setting. Keep each upload batch below 4 MB. Supporting larger
+uploads or archive downloads requires direct private object-storage transfers;
+raising `MAX_UPLOAD_BYTES` alone will not solve it. This remains a go-live
+limitation of the current upload/download architecture.
+See [Vercel Function limits](https://vercel.com/docs/functions/limitations).
+
+## 6. Project settings
+
+- Framework: **Next.js**; root directory: repository root.
+- Install command: `npm ci`; build command: `npm run build`.
+- Output directory: leave the Next.js default.
+- Production branch: `claude/happy-bohr-k38bp7` (the repository's default branch).
+- A successful build with no `DATABASE_URL` is a compile-only check: migrations
+  are skipped and accounts/uploads cannot work until real services are connected.
+- After deployment, confirm the intended public audience in Vercel's Deployment
+  Protection settings. A ready deployment can still require a Vercel sign-in.
 
 ---
 

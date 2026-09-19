@@ -115,9 +115,9 @@ Deployed on **Vercel**. `DEPLOY.md` is the full checklist; the short version:
    the administrator — there is no manual step.
 
 Exports are driven by a Vercel Cron every five minutes
-(`/api/cron/exports`, in `vercel.json`). The extraction route is configured for
-120s, which exceeds the Hobby plan's 60s limit — use Pro, or switch
-`OCR_PROVIDER` to a cloud engine.
+(`/api/cron/exports`, in `vercel.json`). The five-minute cron requires Pro or Enterprise. With Fluid Compute, the
+120-second extraction limit is supported; see `DEPLOY.md` for plan and payload
+limits. Upload requests and download responses are limited to 4.5 MB by Vercel.
 
 To run it on a plain Node server instead, `npm run build && npm start` with
 `STORAGE_DRIVER=local` and `npm run worker:exports` alongside works unchanged.
